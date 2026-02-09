@@ -1,0 +1,22 @@
+# Environment variables (contains secrets)
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+
+# Data files (will be created at runtime)
+opportunities.json
+scan_state.json
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
