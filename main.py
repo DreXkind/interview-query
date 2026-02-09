@@ -235,6 +235,33 @@ async def reset_scan():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/debug")
+async def debug_info():
+    """Debug endpoint to check Reddit connection."""
+    import os
+    try:
+        scanner = get_scanner()
+        # Test Reddit connection
+        user = scanner.reddit.user.me()
+        return {
+            "reddit_connected": True,
+            "reddit_user": str(user),
+            "client_id_set": bool(os.getenv("REDDIT_CLIENT_ID")),
+            "client_secret_set": bool(os.getenv("REDDIT_CLIENT_SECRET")),
+            "username_set": bool(os.getenv("REDDIT_USERNAME")),
+            "password_set": bool(os.getenv("REDDIT_PASSWORD")),
+        }
+    except Exception as e:
+        return {
+            "reddit_connected": False,
+            "error": str(e),
+            "client_id_set": bool(os.getenv("REDDIT_CLIENT_ID")),
+            "client_secret_set": bool(os.getenv("REDDIT_CLIENT_SECRET")),
+            "username_set": bool(os.getenv("REDDIT_USERNAME")),
+            "password_set": bool(os.getenv("REDDIT_PASSWORD")),
+        }
+
+
 @app.get("/api/stats")
 async def get_stats():
     """Get dashboard statistics."""
