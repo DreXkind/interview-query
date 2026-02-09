@@ -239,6 +239,11 @@ async def reset_scan():
 async def debug_info():
     """Debug endpoint to check Reddit connection."""
     import os
+    client_id = os.getenv("REDDIT_CLIENT_ID", "")
+    client_secret = os.getenv("REDDIT_CLIENT_SECRET", "")
+    username = os.getenv("REDDIT_USERNAME", "")
+    password = os.getenv("REDDIT_PASSWORD", "")
+    
     try:
         scanner = get_scanner()
         # Test Reddit connection
@@ -246,19 +251,19 @@ async def debug_info():
         return {
             "reddit_connected": True,
             "reddit_user": str(user),
-            "client_id_set": bool(os.getenv("REDDIT_CLIENT_ID")),
-            "client_secret_set": bool(os.getenv("REDDIT_CLIENT_SECRET")),
-            "username_set": bool(os.getenv("REDDIT_USERNAME")),
-            "password_set": bool(os.getenv("REDDIT_PASSWORD")),
+            "client_id_preview": client_id[:5] + "..." + client_id[-3:] if len(client_id) > 8 else "too_short",
+            "client_secret_preview": client_secret[:5] + "..." + client_secret[-3:] if len(client_secret) > 8 else "too_short",
+            "username": username,
+            "password_length": len(password),
         }
     except Exception as e:
         return {
             "reddit_connected": False,
             "error": str(e),
-            "client_id_set": bool(os.getenv("REDDIT_CLIENT_ID")),
-            "client_secret_set": bool(os.getenv("REDDIT_CLIENT_SECRET")),
-            "username_set": bool(os.getenv("REDDIT_USERNAME")),
-            "password_set": bool(os.getenv("REDDIT_PASSWORD")),
+            "client_id_preview": client_id[:5] + "..." + client_id[-3:] if len(client_id) > 8 else "too_short",
+            "client_secret_preview": client_secret[:5] + "..." + client_secret[-3:] if len(client_secret) > 8 else "too_short",
+            "username": username,
+            "password_length": len(password),
         }
 
 
