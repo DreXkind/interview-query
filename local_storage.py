@@ -111,6 +111,13 @@ def _load_scan_state():
     return {"next_index": 0, "scanned_subreddits": []}
 
 
+def reset_scan_state():
+    """Reset scan state to start fresh."""
+    state = {"next_index": 0, "scanned_subreddits": []}
+    _save_scan_state(state)
+    return state
+
+
 def _save_scan_state(state):
     """Save scan state to JSON file."""
     with open(SCAN_STATE_FILE, "w") as f:

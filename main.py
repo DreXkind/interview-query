@@ -222,6 +222,19 @@ async def trigger_scan():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/reset")
+async def reset_scan():
+    """Reset scan state to start fresh."""
+    try:
+        local_storage.reset_scan_state()
+        # Also reset the scanner's seen_posts
+        scanner = get_scanner()
+        scanner.seen_posts.clear()
+        return {"success": True, "message": "Scan state reset. Next scan will start from batch 1."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/stats")
 async def get_stats():
     """Get dashboard statistics."""
