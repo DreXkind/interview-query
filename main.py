@@ -9,11 +9,16 @@ from typing import Optional, List
 import os
 from dotenv import load_dotenv
 
+load_dotenv()
+
 from reddit_scanner import RedditScanner
 from comment_generator import CommentGenerator
-import local_storage
 
-load_dotenv()
+# Use Supabase storage if configured, otherwise fall back to local storage
+if os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_KEY"):
+    import supabase_storage as storage
+else:
+    import local_storage as storage
 
 app = FastAPI(title="Reddit Automation API", version="1.0.0")
 
@@ -102,7 +107,7 @@ async def root():
 async def get_opportunities():
     """Fetch all opportunities from local storage."""
     try:
-        opportunities = local_storage.get_all_opportunities()
+        opportunities = storage.get_all_opportunities()
         return opportunities
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -112,7 +117,7 @@ async def get_opportunities():
 async def update_opportunity_status(opportunity_id: str, update: StatusUpdate):
     """Update the status of an opportunity."""
     try:
-        local_storage.update_opportunity_status(opportunity_id, update.status)
+        storage.update_opportunity_status(opportunity_id, update.status)
         return {"success": True, "id": opportunity_id, "status": update.status}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -122,7 +127,7 @@ async def update_opportunity_status(opportunity_id: str, update: StatusUpdate):
 async def save_reply_url(opportunity_id: str, update: ReplyUpdate):
     """Save the reply URL for an opportunity."""
     try:
-        local_storage.save_reply_url(opportunity_id, update.reply_url)
+        storage.save_reply_url(opportunity_id, update.reply_url)
         return {"success": True, "id": opportunity_id, "reply_url": update.reply_url}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -132,7 +137,7 @@ async def save_reply_url(opportunity_id: str, update: ReplyUpdate):
 async def save_feedback(opportunity_id: str, update: FeedbackUpdate):
     """Save feedback for an opportunity and mark as skipped."""
     try:
-        local_storage.save_feedback(opportunity_id, update.feedback)
+        storage.save_feedback(opportunity_id, update.feedback)
         return {"success": True, "id": opportunity_id, "feedback": update.feedback}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -143,7 +148,7 @@ async def get_tracked_replies():
     """Get all tracked replies with performance metrics."""
     try:
         scanner = get_scanner()
-        replies = local_storage.get_tracked_replies()
+        replies = storage.get_tracked_replies()
         
         # Fetch current scores from Reddit
         for reply in replies:
@@ -167,14 +172,14 @@ async def trigger_scan():
         generator = get_generator()
         
         # Get existing URLs to avoid duplicates
-        existing_urls = local_storage.get_existing_urls()
+        existing_urls = storage.get_existing_urls()
         
         # Get next batch of subreddits to scan (rotates through all)
         import dynamic_config
         all_subreddits = dynamic_config.get_all_subreddits()
         batch_size = dynamic_config.get_subreddits_per_scan()
         posts_per_sub = dynamic_config.get_posts_per_subreddit()
-        next_subs = local_storage.get_next_subreddits(all_subreddits, batch_size=batch_size)
+        next_subs = storage.get_next_subreddits(all_subreddits, batch_size=batch_size)
         
         results = []
         for sub in next_subs:
@@ -187,7 +192,7 @@ async def trigger_scan():
         # Get scan progress info
         total_subreddits = len(all_subreddits)
         total_batches = (total_subreddits + batch_size - 1) // batch_size  # Ceiling division
-        current_batch = local_storage.get_current_batch_number(total_subreddits, batch_size)
+        current_batch = storage.get_current_batch_number(total_subreddits, batch_size)
         
         if not new_results:
             return {
@@ -207,7 +212,7 @@ async def trigger_scan():
             result["reply_url"] = ""
         
         # Save to local storage
-        local_storage.append_opportunities(new_results)
+        storage.append_opportunities(new_results)
         
         return {
             "success": True,
@@ -226,7 +231,7 @@ async def trigger_scan():
 async def reset_scan():
     """Reset scan state to start fresh."""
     try:
-        local_storage.reset_scan_state()
+        storage.reset_scan_state()
         # Also reset the scanner's seen_posts
         scanner = get_scanner()
         scanner.seen_posts.clear()
@@ -271,7 +276,7 @@ async def debug_info():
 async def get_stats():
     """Get dashboard statistics."""
     try:
-        opportunities = local_storage.get_all_opportunities()
+        opportunities = storage.get_all_opportunities()
         
         total = len(opportunities)
         pending = sum(1 for o in opportunities if o.get("status") == "pending")
