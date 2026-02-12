@@ -153,3 +153,91 @@ def get_next_subreddits(all_subreddits: list, batch_size: int = 3) -> list:
     _save_scan_state(state)
     
     return batch
+
+
+# ============== Comment Metrics Functions ==============
+
+def save_comment_metric(opportunity_id: str, reply_url: str, subreddit: str, persona: str, initial_score: int):
+    """Save initial metrics when a reply URL is saved."""
+    client = get_client()
+    client.table("comment_metrics").upsert({
+        "opportunity_id": opportunity_id,
+        "reply_url": reply_url,
+        "subreddit": subreddit,
+        "persona": persona,
+        "initial_score": initial_score,
+        "current_score": initial_score,
+        "last_updated": datetime.now().isoformat()
+    }, on_conflict="opportunity_id").execute()
+
+
+def update_comment_score(opportunity_id: str, current_score: int):
+    """Update the current score for a tracked comment."""
+    client = get_client()
+    client.table("comment_metrics").update({
+        "current_score": current_score,
+        "last_updated": datetime.now().isoformat()
+    }).eq("opportunity_id", opportunity_id).execute()
+
+
+def get_all_comment_metrics():
+    """Get all comment metrics for analytics."""
+    client = get_client()
+    response = client.table("comment_metrics").select("*").order("created_at", desc=True).execute()
+    return response.data or []
+
+
+def get_analytics_summary():
+    """Get aggregated analytics data."""
+    metrics = get_all_comment_metrics()
+    
+    if not metrics:
+        return {
+            "total_replies": 0,
+            "total_upvotes": 0,
+            "avg_upvotes": 0,
+            "best_subreddits": [],
+            "best_personas": []
+        }
+    
+    total_replies = len(metrics)
+    total_upvotes = sum(m.get("current_score", 0) for m in metrics)
+    avg_upvotes = total_upvotes / total_replies if total_replies > 0 else 0
+    
+    # Group by subreddit
+    subreddit_stats = {}
+    for m in metrics:
+        sub = m.get("subreddit", "unknown")
+        if sub not in subreddit_stats:
+            subreddit_stats[sub] = {"count": 0, "total_score": 0}
+        subreddit_stats[sub]["count"] += 1
+        subreddit_stats[sub]["total_score"] += m.get("current_score", 0)
+    
+    best_subreddits = [
+        {"subreddit": k, "replies": v["count"], "avg_score": round(v["total_score"] / v["count"], 1)}
+        for k, v in subreddit_stats.items()
+    ]
+    best_subreddits.sort(key=lambda x: x["avg_score"], reverse=True)
+    
+    # Group by persona
+    persona_stats = {}
+    for m in metrics:
+        persona = m.get("persona", "unknown")
+        if persona not in persona_stats:
+            persona_stats[persona] = {"count": 0, "total_score": 0}
+        persona_stats[persona]["count"] += 1
+        persona_stats[persona]["total_score"] += m.get("current_score", 0)
+    
+    best_personas = [
+        {"persona": k, "replies": v["count"], "avg_score": round(v["total_score"] / v["count"], 1)}
+        for k, v in persona_stats.items()
+    ]
+    best_personas.sort(key=lambda x: x["avg_score"], reverse=True)
+    
+    return {
+        "total_replies": total_replies,
+        "total_upvotes": total_upvotes,
+        "avg_upvotes": round(avg_upvotes, 1),
+        "best_subreddits": best_subreddits[:10],
+        "best_personas": best_personas[:10]
+    }

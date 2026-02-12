@@ -125,9 +125,31 @@ async def update_opportunity_status(opportunity_id: str, update: StatusUpdate):
 
 @app.patch("/api/opportunities/{opportunity_id}/reply")
 async def save_reply_url(opportunity_id: str, update: ReplyUpdate):
-    """Save the reply URL for an opportunity."""
+    """Save the reply URL for an opportunity and track initial metrics."""
     try:
+        # Get opportunity details for metrics
+        opportunities = storage.get_all_opportunities()
+        opp = next((o for o in opportunities if o.get("id") == opportunity_id), None)
+        
+        # Save reply URL
         storage.save_reply_url(opportunity_id, update.reply_url)
+        
+        # Get initial score from Reddit and save metrics
+        if opp:
+            scanner = get_scanner()
+            try:
+                initial_score = scanner.get_comment_score(update.reply_url)
+            except:
+                initial_score = 0
+            
+            storage.save_comment_metric(
+                opportunity_id=opportunity_id,
+                reply_url=update.reply_url,
+                subreddit=opp.get("subreddit", ""),
+                persona=opp.get("recommended_persona", ""),
+                initial_score=initial_score
+            )
+        
         return {"success": True, "id": opportunity_id, "reply_url": update.reply_url}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -291,6 +313,45 @@ async def get_stats():
             "replied": replied,
             "high_intent": high_intent,
             "low_intent": total - high_intent
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/refresh-scores")
+async def refresh_scores():
+    """Refresh upvote scores for all tracked comments."""
+    try:
+        scanner = get_scanner()
+        metrics = storage.get_all_comment_metrics()
+        updated = 0
+        
+        for metric in metrics:
+            reply_url = metric.get("reply_url")
+            opp_id = metric.get("opportunity_id")
+            if reply_url and opp_id:
+                try:
+                    current_score = scanner.get_comment_score(reply_url)
+                    storage.update_comment_score(opp_id, current_score)
+                    updated += 1
+                except:
+                    pass
+        
+        return {"success": True, "updated": updated, "total": len(metrics)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/analytics")
+async def get_analytics():
+    """Get comment performance analytics."""
+    try:
+        summary = storage.get_analytics_summary()
+        metrics = storage.get_all_comment_metrics()
+        return {
+            "success": True,
+            "summary": summary,
+            "metrics": metrics
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
